@@ -19,15 +19,20 @@ for(i in 1:10){
 
 #Problem 3 ----
 samplespace <- c(rep("man",6),rep("woman",8))
-comb <- function(n,k){factorial(n)/factorial(n-k)/factorial(k)}
-hyp.dis <- function(N,r,w,n,k){(comb(r,k)*comb(w,n-k))/comb(N,n)}
+resultsvector <- NULL
 
-for(i in 1:10){
-  i <- sample(samplespace, 5)
-  print(i)
+for(i in 1:1000){
+   choose <- sample(samplespace, 5, replace = FALSE)
+   sum(choose=="man")
+   if(sum(choose=="man")==3){
+   resultsvector <- c(resultsvector, 1)
+   } else {
+     resultsvector <- c(resultsvector, 0)
+   }
 }
+sum(resultsvector)/1000
+dhyper(3,6,8,5)
 
-hyp.dis(14,6,8,5,3)
 
 #Problem 4 ----
 
