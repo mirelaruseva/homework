@@ -22,23 +22,16 @@ final <- Dates %>%
   group_by(Symbol) %>%
   fill(adjusted, .direction = "downup")
 
-
+#my initial thought process and understanding 
 new_data <- final %>%
-  mutate(SMA20 = SMA(adjusted, 20)) %>%
-  filter(!is.na(SMA20)) %>%
-  select(SMA20) %>%
-  summarise(sd = sd(SMA20),
-            mean = mean(SMA20),
-            n = n(),
-            margin_of_error = 1.96*(sd/sqrt(n)),
-            lower = mean - margin_of_error,
-            upper = mean + margin_of_error)
-
-
-baseline <- final %>%
-  mutate(signal = ifelse(adjusted > 415.8038, "sell", ifelse(adjusted < 402.8708, "buy", NA)))
+  mutate(SMA20 = SMA(adjusted, 20),
+         SD20 = sd(SMA20),
+         lower = SMA20 - 1.96*SD20,
+         upper = SMA20 + 1.96*SD20,
+         signal = ifelse(adjusted > upper & lag(adjusted) < upper, "sell", ifelse(adjusted < lower & lag(adjusted) > lower, "buy", NA)),
+         RSI = RSI(adjusted, 14),
+         RSI_signal = ifelse(RSI > 65, "sell", ifelse(RSI < 35, "buy", NA)))
   
-
 # Calculate the RSI using the instruction about the formula from here:
 
 RSI_fun <- function(price, n){
@@ -75,7 +68,7 @@ RSI = 100 - 100/(1+RS)
 }
 
 
-########################
+####
 
 RSIfun <- function(price, n) {
   N <- length(price)
@@ -100,13 +93,36 @@ RSIfun <- function(price, n) {
 }
 
 
-# Employ the following strategy and compare to a baseline strategy of buy and hold:
-# If the RSI above 65 - sell.
-# If the price goes below 35 - buy.
+#correct answer (not entirely completed)
+fin_data1 <- final %>%
+  mutate(SMA20 = SMA(adjusted, n = 20),
+         SD20 = RcppRoll::roll_sd(adjusted, n = 20, align = "right"),
+         Upper = SMA20 + 2*SD20,
+         Lower = SMA20 - 2*SD20,
+         buy_sell = case_when(lag(adjusted) < lag(Upper) & adjusted > Upper ~ "sell",
+                              lag(adjusted) > lag(Lower) & adjusted < Lower ~ "buy")) %>%
+  mutate(ProfitCoeff = adjusted/lag(adjusted),
+         ProfitCoeff = ifelse(is.na(ProfitCoeff), 1, ProfitCoeff))
 
-strategy <- final %>%
-  mutate(RSI = RSI(adjusted, 14),
-         RSI_signal = ifelse(RSI > 65, "sell", ifelse(RSI < 35, "buy", NA)),
-         baseline = ifelse(adjusted > 415.8038, "sell", ifelse(adjusted < 402.8708, "buy", NA)))
-
-
+fin_data2 <- fin_data1 %>%
+  mutate(gain_loss = (adjusted/lag(adjusted)) - 1,
+         gain_loss = if_else(is.na(gain_loss), 0, gain_loss),
+         average_gain1 = case_when(gain_loss >= 0 ~ gain_loss,
+                                   gain_loss < 0 ~ 0),
+         average_gain = SMA(average_gain1, 14),
+         average_loss1 = case_when(gain_loss <= 0 ~ abs(gain_loss),
+                                   gain_loss > 0 ~ 0),
+         average_loss = SMA(average_loss1, 14),
+         RSI1 = 100 - (100/(1+(average_gain/average_loss))),
+         RSI = 100 - (100/(1+((13*lag(average_gain) + average_gain1)/(1)))),
+         buy_sell = case_when(RSI > 65 ~ "sell",
+                              RSI < 35 ~ "buy"),
+         ProfitCoeff = adjusted/lag(adjusted),
+         ProfitCoeff = if_else(is.na(ProfitCoeff), 1, ProfitCoeff),
+         BencmarkMoney = 100 * cumprod(ProfitCoeff),
+         buy_sell_for_comparison = buy_sell) %>%
+  fill(buy_sell_for_comparison, .direction = "down") %>%
+  mutate(buy_sell_for_comparison = if_else(is.na(buy_sell_for_comparison)),
+         ProfitCoeff_strategy = case_when(buy_sell_for_comparison == ,
+                                          buy_sell_for_comparison == ),
+         StrategyMoney = 100 * cumprod(ProfitCoeff_strategy))
